@@ -27,11 +27,14 @@ function addDays(date: Date, days: number) {
 
 export function UpcomingView({ onAddTask }: { onAddTask: () => void }) {
   const [weekStart, setWeekStart] = useState(() => new Date());
+  const [draggedTaskId, setDraggedTaskId] = useState<string | undefined>();
+  const [dropTargetDate, setDropTargetDate] = useState<string | undefined>();
   const tasks = useLumeStore((state) => state.tasks);
   const setSelectedDate = useLumeStore((state) => state.setSelectedDate);
   const selectTask = useLumeStore((state) => state.selectTask);
   const selectedTaskId = useLumeStore((state) => state.selectedTaskId);
   const toggleComplete = useLumeStore((state) => state.toggleComplete);
+  const updateTask = useLumeStore((state) => state.updateTask);
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
 
   function jumpWeek(delta: number) {
@@ -41,6 +44,21 @@ export function UpcomingView({ onAddTask }: { onAddTask: () => void }) {
   function selectDay(date: Date) {
     setSelectedDate(toLocalDateId(date));
     onAddTask();
+  }
+
+  function finishTaskDrag() {
+    setDraggedTaskId(undefined);
+    setDropTargetDate(undefined);
+  }
+
+  function moveDraggedTask(dateId: string) {
+    if (!draggedTaskId) return;
+    const task = tasks.find((item) => item.id === draggedTaskId);
+    if (task && task.date !== dateId) {
+      updateTask(draggedTaskId, { date: dateId });
+      setSelectedDate(dateId);
+    }
+    finishTaskDrag();
   }
 
   return (
@@ -92,12 +110,34 @@ export function UpcomingView({ onAddTask }: { onAddTask: () => void }) {
                 return a.time.localeCompare(b.time);
               });
             const isToday = dateId === toLocalDateId(new Date());
+            const isDropTarget = draggedTaskId && dropTargetDate === dateId;
             return (
               <section
                 key={dateId}
                 className={`min-h-[520px] min-w-0 overflow-hidden rounded-2xl border p-3 ${
                   isToday ? "border-lume-primary/30 bg-[#F4F4F2]" : "border-lume-border bg-[#FAFAFA]"
-                }`}
+                } ${isDropTarget ? "border-lume-primary/60 bg-[#F8F7FF] ring-4 ring-lume-primary/10" : ""}`}
+                onDragEnter={(event) => {
+                  if (!draggedTaskId) return;
+                  event.preventDefault();
+                  setDropTargetDate(dateId);
+                }}
+                onDragOver={(event) => {
+                  if (!draggedTaskId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropTargetDate(dateId);
+                }}
+                onDragLeave={(event) => {
+                  if (!draggedTaskId) return;
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                  setDropTargetDate((current) => (current === dateId ? undefined : current));
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  moveDraggedTask(dateId);
+                }}
               >
                 <button
                   className="mb-3 flex w-full items-center justify-between rounded-xl bg-white px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5"
@@ -121,7 +161,10 @@ export function UpcomingView({ onAddTask }: { onAddTask: () => void }) {
                       <UpcomingTaskCard
                         key={task.id}
                         task={task}
+                        dragging={draggedTaskId === task.id}
                         selected={selectedTaskId === task.id}
+                        onDragEnd={finishTaskDrag}
+                        onDragStart={() => setDraggedTaskId(task.id)}
                         onSelect={() => selectTask(task.id)}
                         onToggle={() => toggleComplete(task.id)}
                       />
@@ -142,13 +185,19 @@ export function UpcomingView({ onAddTask }: { onAddTask: () => void }) {
 }
 
 function UpcomingTaskCard({
+  dragging,
   task,
   selected,
+  onDragEnd,
+  onDragStart,
   onSelect,
   onToggle,
 }: {
+  dragging: boolean;
   task: Task;
   selected: boolean;
+  onDragEnd: () => void;
+  onDragStart: () => void;
   onSelect: () => void;
   onToggle: () => void;
 }) {
@@ -157,10 +206,18 @@ function UpcomingTaskCard({
 
   return (
     <button
-      className={`block w-full min-w-0 max-w-full overflow-hidden rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-lume-primary/30 ${
+      className={`block w-full min-w-0 max-w-full cursor-grab overflow-hidden rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-lume-primary/30 active:cursor-grabbing ${
         selected ? "border-lume-primary/60 ring-2 ring-black/5" : "border-lume-border"
-      }`}
+      } ${dragging ? "opacity-45 ring-2 ring-lume-primary/20" : ""}`}
       type="button"
+      draggable
+      onDragEnd={onDragEnd}
+      onDragStart={(event) => {
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", task.id);
+        onDragStart();
+      }}
       onClick={onSelect}
     >
       <div className="flex min-w-0 items-start gap-2">

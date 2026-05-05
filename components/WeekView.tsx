@@ -34,11 +34,14 @@ function addDays(date: Date, days: number) {
 
 export function WeekView({ onAddTask }: { onAddTask: () => void }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [draggedTaskId, setDraggedTaskId] = useState<string | undefined>();
+  const [dropTargetDate, setDropTargetDate] = useState<string | undefined>();
   const tasks = useLumeStore((state) => state.tasks);
   const selectedDate = useLumeStore((state) => state.selectedDate);
   const setSelectedDate = useLumeStore((state) => state.setSelectedDate);
   const selectTask = useLumeStore((state) => state.selectTask);
   const toggleComplete = useLumeStore((state) => state.toggleComplete);
+  const updateTask = useLumeStore((state) => state.updateTask);
   const todayId = toLocalDateId(new Date());
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
@@ -63,6 +66,21 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
   function addForDay(dateId: string) {
     setSelectedDate(dateId);
     onAddTask();
+  }
+
+  function finishTaskDrag() {
+    setDraggedTaskId(undefined);
+    setDropTargetDate(undefined);
+  }
+
+  function moveDraggedTask(dateId: string) {
+    if (!draggedTaskId) return;
+    const task = tasks.find((item) => item.id === draggedTaskId);
+    if (task && task.date !== dateId) {
+      updateTask(draggedTaskId, { date: dateId });
+      setSelectedDate(dateId);
+    }
+    finishTaskDrag();
   }
 
   return (
@@ -112,6 +130,7 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
             const dayTasks = weekTasks.filter((task) => task.date === dateId);
             const isToday = dateId === todayId;
             const isSelected = dateId === selectedDate;
+            const isDropTarget = draggedTaskId && dropTargetDate === dateId;
 
             return (
               <section
@@ -122,7 +141,28 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
                     : isToday
                       ? "border-lume-primary/25 bg-[#FAFAFA]"
                       : "border-lume-border bg-[#FAFAFA]"
-                }`}
+                } ${isDropTarget ? "border-lume-primary/60 bg-[#F8F7FF] ring-4 ring-lume-primary/10" : ""}`}
+                onDragEnter={(event) => {
+                  if (!draggedTaskId) return;
+                  event.preventDefault();
+                  setDropTargetDate(dateId);
+                }}
+                onDragOver={(event) => {
+                  if (!draggedTaskId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropTargetDate(dateId);
+                }}
+                onDragLeave={(event) => {
+                  if (!draggedTaskId) return;
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                  setDropTargetDate((current) => (current === dateId ? undefined : current));
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  moveDraggedTask(dateId);
+                }}
               >
                 <button
                   className="mb-3 flex w-full items-center justify-between rounded-xl bg-white px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5"
@@ -150,8 +190,18 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
                     return (
                       <button
                         key={task.id}
-                        className="rounded-xl border border-lume-border bg-white p-3 text-left shadow-sm transition hover:border-lume-primary/30"
+                        className={`cursor-grab rounded-xl border border-lume-border bg-white p-3 text-left shadow-sm transition hover:border-lume-primary/30 active:cursor-grabbing ${
+                          draggedTaskId === task.id ? "opacity-45 ring-2 ring-lume-primary/20" : ""
+                        }`}
                         type="button"
+                        draggable
+                        onDragEnd={finishTaskDrag}
+                        onDragStart={(event) => {
+                          event.stopPropagation();
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", task.id);
+                          setDraggedTaskId(task.id);
+                        }}
                         onClick={() => selectTask(task.id)}
                       >
                         <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-lume-muted">

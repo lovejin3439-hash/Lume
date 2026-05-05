@@ -61,10 +61,13 @@ export function CalendarView({
   const [menuDate, setMenuDate] = useState<string | undefined>();
   const [expandedDate, setExpandedDate] = useState<string | undefined>();
   const [sidePanelDate, setSidePanelDate] = useState<string | undefined>();
+  const [draggedTaskId, setDraggedTaskId] = useState<string | undefined>();
+  const [dropTargetDate, setDropTargetDate] = useState<string | undefined>();
   const tasks = useLumeStore((state) => state.tasks);
   const selectedDate = useLumeStore((state) => state.selectedDate);
   const setSelectedDate = useLumeStore((state) => state.setSelectedDate);
   const setPageTitle = useLumeStore((state) => state.setPageTitle);
+  const updateTask = useLumeStore((state) => state.updateTask);
   const toggleComplete = useLumeStore((state) => state.toggleComplete);
   const searchQuery = useLumeStore((state) => state.searchQuery);
   const today = new Date();
@@ -119,6 +122,31 @@ export function CalendarView({
     setSelectedDate(dateId);
     setSidePanelDate(undefined);
     onAddTask("task");
+  }
+
+  function startTaskDrag(taskId: string) {
+    setDraggedTaskId(taskId);
+    setMenuDate(undefined);
+    setExpandedDate(undefined);
+    setSidePanelDate(undefined);
+  }
+
+  function finishTaskDrag() {
+    setDraggedTaskId(undefined);
+    setDropTargetDate(undefined);
+  }
+
+  function moveDraggedTask(dateId: string) {
+    if (!draggedTaskId) return;
+    const task = tasks.find((item) => item.id === draggedTaskId);
+    if (!task || task.date === dateId) {
+      finishTaskDrag();
+      return;
+    }
+    updateTask(draggedTaskId, { date: dateId });
+    setSelectedDate(dateId);
+    setPageTitle("Calendar");
+    finishTaskDrag();
   }
 
   const selectedTasks = sortCalendarItems(visibleTasks.filter((task) => task.date === selectedDate));
@@ -182,14 +210,38 @@ export function CalendarView({
           const muted = date.getMonth() !== visibleMonth.getMonth();
           const selected = selectedDate === dateId;
           const isToday = dateId === todayId;
+          const isDropTarget = draggedTaskId && dropTargetDate === dateId;
 
           return (
             <section
               key={date.toISOString()}
               className={`relative min-h-40 rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:border-lume-primary/30 ${
                 muted ? "border-lume-border/60 bg-[#FAFAFA] text-lume-muted" : "border-lume-border bg-white text-lume-ink"
-              } ${selected ? "border-lume-primary/40 ring-4 ring-black/5" : ""}`}
+              } ${selected ? "border-lume-primary/40 ring-4 ring-black/5" : ""} ${
+                isDropTarget ? "border-lume-primary/60 bg-[#F8F7FF] ring-4 ring-lume-primary/10" : ""
+              } ${draggedTaskId ? "cursor-copy" : ""}`}
               onClick={() => selectDate(dateId)}
+              onDragEnter={(event) => {
+                if (!draggedTaskId) return;
+                event.preventDefault();
+                setDropTargetDate(dateId);
+              }}
+              onDragOver={(event) => {
+                if (!draggedTaskId) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDropTargetDate(dateId);
+              }}
+              onDragLeave={(event) => {
+                if (!draggedTaskId) return;
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                setDropTargetDate((current) => (current === dateId ? undefined : current));
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                moveDraggedTask(dateId);
+              }}
             >
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-lume-muted">
@@ -214,6 +266,9 @@ export function CalendarView({
                   <CalendarMiniItem
                     key={task.id}
                     task={task}
+                    dragging={draggedTaskId === task.id}
+                    onDragEnd={finishTaskDrag}
+                    onDragStart={() => startTaskDrag(task.id)}
                     onSelect={() => onEditTask(task.id)}
                     onToggle={() => toggleComplete(task.id)}
                   />
@@ -323,11 +378,17 @@ function formatTaskTime(task: Task) {
 }
 
 function CalendarMiniItem({
+  dragging,
   task,
+  onDragEnd,
+  onDragStart,
   onSelect,
   onToggle,
 }: {
+  dragging: boolean;
   task: Task;
+  onDragEnd: () => void;
+  onDragStart: () => void;
   onSelect: () => void;
   onToggle: () => void;
 }) {
@@ -338,9 +399,19 @@ function CalendarMiniItem({
   if (!isCheckable) {
     return (
       <button
-        className="flex min-w-0 items-center rounded-md px-2 py-1 text-left text-[11px] font-semibold text-white shadow-sm transition hover:brightness-95"
+        className={`flex min-w-0 cursor-grab items-center rounded-md px-2 py-1 text-left text-[11px] font-semibold text-white shadow-sm transition hover:brightness-95 active:cursor-grabbing ${
+          dragging ? "opacity-45 ring-2 ring-lume-primary/20" : ""
+        }`}
         style={{ backgroundColor: color }}
         type="button"
+        draggable
+        onDragEnd={onDragEnd}
+        onDragStart={(event) => {
+          event.stopPropagation();
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", task.id);
+          onDragStart();
+        }}
         onClick={(event) => {
           event.stopPropagation();
           onSelect();
@@ -353,8 +424,18 @@ function CalendarMiniItem({
 
   return (
     <button
-      className="group flex min-w-0 items-center gap-1.5 rounded-md bg-transparent px-1 py-0.5 text-left text-[11px] transition hover:bg-[#F4F8FF]"
+      className={`group flex min-w-0 cursor-grab items-center gap-1.5 rounded-md bg-transparent px-1 py-0.5 text-left text-[11px] transition hover:bg-[#F4F8FF] active:cursor-grabbing ${
+        dragging ? "opacity-45 ring-2 ring-lume-primary/20" : ""
+      }`}
       type="button"
+      draggable
+      onDragEnd={onDragEnd}
+      onDragStart={(event) => {
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", task.id);
+        onDragStart();
+      }}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();

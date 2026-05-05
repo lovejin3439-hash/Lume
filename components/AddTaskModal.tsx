@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Check,
   CheckSquare,
+  ChevronDown,
   ChevronRight,
   MapPin,
   MoreHorizontal,
@@ -885,6 +886,7 @@ function TimeRangeField({
 }) {
   const start = splitTime(startTime);
   const end = splitTime(endTime);
+  const [activePicker, setActivePicker] = useState<string | null>(null);
 
   return (
     <div className="grid gap-2 text-sm font-semibold text-lume-ink">
@@ -892,19 +894,25 @@ function TimeRangeField({
       <div className={`rounded-xl border border-lume-border bg-[#FAFAFA] p-3 ${disabled ? "opacity-45" : ""}`}>
         <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:items-end">
           <TimeSelectGroup
+            activePicker={activePicker}
             disabled={disabled}
             hour={start.hour}
+            idPrefix="start"
             label="Start"
             minute={start.minute}
             onChange={(hour, minute) => onStartChange(joinTime(hour, minute))}
+            setActivePicker={setActivePicker}
           />
           <span className="hidden pb-3 text-center text-sm font-semibold text-lume-muted xl:block">-</span>
           <TimeSelectGroup
+            activePicker={activePicker}
             disabled={disabled}
             hour={end.hour}
+            idPrefix="end"
             label="End"
             minute={end.minute}
             onChange={(hour, minute) => onEndChange(joinTime(hour, minute))}
+            setActivePicker={setActivePicker}
           />
         </div>
       </div>
@@ -913,48 +921,130 @@ function TimeRangeField({
 }
 
 function TimeSelectGroup({
+  activePicker,
   disabled,
   hour,
+  idPrefix,
   label,
   minute,
   onChange,
+  setActivePicker,
 }: {
+  activePicker: string | null;
   disabled: boolean;
   hour: string;
+  idPrefix: string;
   label: string;
   minute: string;
   onChange: (hour: string, minute: string) => void;
+  setActivePicker: (value: string | null) => void;
 }) {
   return (
-    <label className="grid gap-1">
+    <div className="grid gap-1">
       <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-lume-muted">{label}</span>
       <div className="grid min-w-0 grid-cols-2 gap-2">
-        <select
-          className="h-10 w-full min-w-0 rounded-lg border border-lume-border bg-white px-2 text-center text-sm font-semibold tabular-nums text-lume-ink outline-none focus:border-lume-primary"
+        <TimePickerButton
+          activePicker={activePicker}
           disabled={disabled}
+          id={`${idPrefix}-hour`}
+          label={`${label} hour`}
+          options={hourOptions}
+          setActivePicker={setActivePicker}
           value={hour}
-          onChange={(event) => onChange(event.target.value, minute)}
-        >
-          {hourOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-10 w-full min-w-0 rounded-lg border border-lume-border bg-white px-2 text-center text-sm font-semibold tabular-nums text-lume-ink outline-none focus:border-lume-primary"
+          onChange={(nextHour) => onChange(nextHour, minute)}
+        />
+        <TimePickerButton
+          activePicker={activePicker}
           disabled={disabled}
+          id={`${idPrefix}-minute`}
+          label={`${label} minute`}
+          options={minuteOptions}
+          setActivePicker={setActivePicker}
           value={minute}
-          onChange={(event) => onChange(hour, event.target.value)}
-        >
-          {minuteOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+          onChange={(nextMinute) => onChange(hour, nextMinute)}
+        />
       </div>
-    </label>
+    </div>
+  );
+}
+
+function TimePickerButton({
+  activePicker,
+  disabled,
+  id,
+  label,
+  options,
+  setActivePicker,
+  value,
+  onChange,
+}: {
+  activePicker: string | null;
+  disabled: boolean;
+  id: string;
+  label: string;
+  options: string[];
+  setActivePicker: (value: string | null) => void;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const open = activePicker === id;
+
+  function selectValue(nextValue: string) {
+    onChange(nextValue);
+    setActivePicker(null);
+  }
+
+  return (
+    <div className="relative min-w-0">
+      <button
+        className={`group flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-full border bg-white px-3 text-sm font-semibold tabular-nums text-lume-ink shadow-[0_8px_18px_rgba(23,23,42,0.04)] outline-none transition ${
+          open
+            ? "border-lume-primary/45 ring-4 ring-lume-primary/10"
+            : "border-lume-border hover:border-lume-primary/30 hover:bg-[#FCFCFB]"
+        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+        type="button"
+        disabled={disabled}
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => setActivePicker(open ? null : id)}
+      >
+        <span>{value}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-lume-muted transition ${open ? "rotate-180 text-lume-primary" : ""}`}
+        />
+      </button>
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            className="absolute left-0 top-[calc(100%+8px)] z-40 w-full min-w-[88px] rounded-2xl border border-lume-border bg-white p-1.5 shadow-[0_18px_50px_rgba(23,23,42,0.16)]"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.14 }}
+          >
+            <div className="max-h-48 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:#D8DAE5_transparent]">
+              {options.map((option) => {
+                const active = option === value;
+                return (
+                  <button
+                    key={option}
+                    className={`mb-1 flex h-9 w-full items-center justify-center rounded-xl px-2 text-sm font-semibold tabular-nums transition last:mb-0 ${
+                      active
+                        ? "bg-lume-primary text-white shadow-[0_8px_18px_rgba(108,99,255,0.22)]"
+                        : "text-lume-ink hover:bg-[#F4F4F2]"
+                    }`}
+                    type="button"
+                    onClick={() => selectValue(option)}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }
 
