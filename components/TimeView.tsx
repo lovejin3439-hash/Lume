@@ -14,6 +14,15 @@ function topOffset(time: string) {
   return ((hour - 8) * 72) + (minute / 60) * 72;
 }
 
+function durationHeight(start: string, end?: string) {
+  if (!end) return 64;
+  return Math.max(64, topOffset(end) - topOffset(start));
+}
+
+function formatTaskTime(task: { time: string; endTime?: string }) {
+  return task.endTime ? `${task.time} - ${task.endTime}` : task.time;
+}
+
 function formatHour(hour: number) {
   if (hour === 12) return "12 PM";
   if (hour > 12) return `${hour - 12} PM`;
@@ -90,6 +99,7 @@ export function TimeView() {
 
         {positionedScheduled.map(({ task, top }) => {
           const projectColor = getProjectColor(task.project);
+          const height = durationHeight(task.time, task.endTime);
           return (
             <motion.button
               key={task.id}
@@ -97,13 +107,13 @@ export function TimeView() {
               animate={{ opacity: 1, x: 0 }}
               whileHover={{ scale: 1.01 }}
               className="absolute left-[88px] right-4 overflow-hidden rounded-xl border border-lume-border bg-white text-left shadow-sm transition hover:border-lume-primary/30"
-              style={{ top, minHeight: 64 }}
+              style={{ top, minHeight: 64, height }}
               type="button"
               onClick={() => selectTask(task.id)}
             >
               <span className={`absolute inset-y-0 left-0 w-1.5 ${projectColor.dot}`} />
               <div className="grid gap-2 px-4 py-3 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
-                <div className="text-sm font-semibold tabular-nums text-lume-muted">{task.time}</div>
+                <div className="text-sm font-semibold tabular-nums text-lume-muted">{formatTaskTime(task)}</div>
                 <div className="min-w-0">
                   <div className={`truncate text-sm font-semibold ${task.completed ? "text-lume-muted line-through" : "text-lume-ink"}`}>
                     {task.title}

@@ -138,6 +138,15 @@ export function TaskDetailPanel() {
             </EditableField>
           </div>
 
+          <EditableField label="End Time">
+            <input
+              inputMode="numeric"
+              placeholder="HH:mm"
+              value={task.endTime ?? ""}
+              onChange={(event) => updateTask(task.id, { endTime: event.target.value || undefined })}
+            />
+          </EditableField>
+
           <div className="grid grid-cols-2 gap-3">
             <EditableField label="Deadline">
               <input

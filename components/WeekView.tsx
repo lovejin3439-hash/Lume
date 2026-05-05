@@ -1,10 +1,23 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getProjectColor } from "@/lib/projectColors";
 import { toLocalDateId } from "@/lib/taskFilters";
-import { useLumeStore } from "@/store/useLumeStore";
+import { getDefaultKindColor, useLumeStore, type Task, type TaskKind } from "@/store/useLumeStore";
+
+const kindLabel: Record<TaskKind, string> = {
+  event: "일정",
+  task: "할일",
+  block: "구간",
+  habit: "습관",
+};
+
+const kindOrder: Record<TaskKind, number> = { event: 0, block: 1, habit: 2, task: 3 };
+
+function formatTaskTime(task: Task) {
+  return task.endTime ? `${task.time} - ${task.endTime}` : task.time;
+}
 
 function startOfWeek(date: Date) {
   const next = new Date(date);
@@ -25,6 +38,7 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
   const selectedDate = useLumeStore((state) => state.selectedDate);
   const setSelectedDate = useLumeStore((state) => state.setSelectedDate);
   const selectTask = useLumeStore((state) => state.selectTask);
+  const toggleComplete = useLumeStore((state) => state.toggleComplete);
   const todayId = toLocalDateId(new Date());
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
@@ -33,7 +47,13 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
       const taskDate = new Date(`${task.date}T00:00:00`);
       return taskDate >= weekStart && taskDate <= addDays(weekStart, 6);
     })
-    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    .sort((a, b) => {
+      const dateDiff = a.date.localeCompare(b.date);
+      if (dateDiff !== 0) return dateDiff;
+      const kindDiff = kindOrder[a.kind ?? "task"] - kindOrder[b.kind ?? "task"];
+      if (kindDiff !== 0) return kindDiff;
+      return a.time.localeCompare(b.time);
+    });
   const completed = weekTasks.filter((task) => task.completed).length;
 
   function moveWeek(delta: number) {
@@ -124,7 +144,9 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
 
                 <div className="grid gap-2">
                   {dayTasks.map((task) => {
-                    const color = getProjectColor(task.project);
+                    const projectColor = getProjectColor(task.project);
+                    const itemColor = getTaskColor(task);
+                    const isCheckable = task.kind === "task" || task.kind === "habit";
                     return (
                       <button
                         key={task.id}
@@ -135,15 +157,39 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
                         <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-lume-muted">
                           <span className="inline-flex items-center gap-1 tabular-nums">
                             <Clock3 className="h-3 w-3" />
-                            {task.time}
+                            {formatTaskTime(task)}
                           </span>
-                          <span className={`h-2 w-2 rounded-full ${color.dot}`} />
+                          {isCheckable ? (
+                            <span
+                              className="grid h-5 w-5 place-items-center rounded-full border transition"
+                              style={{
+                                borderColor: task.completed ? itemColor : `${itemColor}88`,
+                                backgroundColor: task.completed ? itemColor : "white",
+                                color: task.completed ? "white" : "transparent",
+                              }}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleComplete(task.id);
+                              }}
+                            >
+                              <Check className="h-3 w-3" />
+                            </span>
+                          ) : (
+                            <span className="h-5 w-5 rounded-md" style={{ backgroundColor: itemColor }} />
+                          )}
                         </div>
                         <div className={`line-clamp-2 text-sm font-semibold leading-5 ${task.completed ? "text-lume-muted line-through" : "text-lume-ink"}`}>
                           {task.title}
                         </div>
-                        <div className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${color.chip}`}>
+                        <div className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${projectColor.chip}`}>
+                          <span className={`mr-1 h-1.5 w-1.5 rounded-full ${projectColor.dot}`} />
                           {task.project}
+                        </div>
+                        <div
+                          className="ml-1 mt-2 inline-flex rounded-full border bg-white px-2 py-1 text-[11px] font-semibold"
+                          style={{ borderColor: `${itemColor}44`, color: itemColor }}
+                        >
+                          {kindLabel[task.kind ?? "task"]}
                         </div>
                       </button>
                     );
@@ -164,4 +210,8 @@ export function WeekView({ onAddTask }: { onAddTask: () => void }) {
       </div>
     </div>
   );
+}
+
+function getTaskColor(task: Task) {
+  return task.color ?? getDefaultKindColor(task.kind ?? "task");
 }

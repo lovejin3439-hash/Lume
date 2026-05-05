@@ -5,17 +5,26 @@ import { toLocalDateId } from "@/lib/taskFilters";
 export type Priority = "p1" | "p2" | "p3" | "p4";
 export type ActiveView = "list" | "time" | "week" | "calendar" | "board";
 export type TaskSection = "To Do" | "In Progress" | "Done";
-export type Recurrence = "none" | "daily" | "weekly" | "monthly";
+export type Recurrence = "none" | "daily" | "weekly" | "monthly" | "monthlyOrdinal" | "yearly" | "weekdays" | "custom";
+export type TaskKind = "event" | "task" | "block" | "habit";
 
 export type Task = {
   id: string;
   title: string;
+  kind: TaskKind;
+  color?: string;
+  habitDays?: number[];
   date: string;
   time: string;
+  endTime?: string;
   project: string;
   priority: Priority;
   labels: string[];
   notes?: string;
+  reminder?: string;
+  achievement?: string;
+  location?: string;
+  attachmentName?: string;
   deadline?: string;
   section: TaskSection;
   recurrence?: Recurrence;
@@ -77,8 +86,11 @@ const initialTasks: Task[] = [
   {
     id: "task-team-meeting",
     title: "Team meeting",
+    kind: "event",
+    color: "#FF4B12",
     date: isoToday,
     time: "09:00",
+    endTime: "10:00",
     project: "Work",
     priority: "p1",
     labels: ["Meeting"],
@@ -90,8 +102,11 @@ const initialTasks: Task[] = [
   {
     id: "task-client-quotation",
     title: "Review client quotation",
+    kind: "task",
+    color: "#1687E8",
     date: isoToday,
     time: "10:30",
+    endTime: "11:00",
     project: "Sales",
     priority: "p2",
     labels: ["Follow-up"],
@@ -103,8 +118,11 @@ const initialTasks: Task[] = [
   {
     id: "task-business-assignment",
     title: "Business class assignment",
+    kind: "task",
+    color: "#9C6ADE",
     date: isoToday,
     time: "13:00",
+    endTime: "14:00",
     project: "School",
     priority: "p1",
     labels: ["Assignment", "Important"],
@@ -116,8 +134,11 @@ const initialTasks: Task[] = [
   {
     id: "task-warehouse-followup",
     title: "Follow up with warehouse team",
+    kind: "task",
+    color: "#1687E8",
     date: isoToday,
     time: "15:30",
+    endTime: "16:00",
     project: "Work",
     priority: "p2",
     labels: ["Follow-up"],
@@ -129,8 +150,12 @@ const initialTasks: Task[] = [
   {
     id: "task-plan-tomorrow",
     title: "Plan tomorrow",
+    kind: "habit",
+    color: "#FFB84D",
+    habitDays: [0, 1, 2, 3, 4, 5, 6],
     date: isoToday,
     time: "19:00",
+    endTime: "19:30",
     project: "Personal",
     priority: "p4",
     labels: ["Important"],
@@ -142,8 +167,11 @@ const initialTasks: Task[] = [
   {
     id: "task-personal-reading",
     title: "Personal reading",
+    kind: "task",
+    color: "#1687E8",
     date: isoToday,
     time: "21:00",
+    endTime: "21:30",
     project: "Personal",
     priority: "p4",
     labels: [],
@@ -155,8 +183,11 @@ const initialTasks: Task[] = [
   {
     id: "task-tomorrow-focus",
     title: "Prepare focus block",
+    kind: "block",
+    color: "#35A8F2",
     date: toLocalDateId(tomorrow),
     time: "11:00",
+    endTime: "12:30",
     project: "Work",
     priority: "p2",
     labels: ["Important"],
@@ -169,6 +200,13 @@ const initialTasks: Task[] = [
 
 const initialProjects = ["Personal", "Work", "School", "Sales"];
 const initialLabels = ["Important", "Meeting", "Assignment", "Follow-up"];
+
+export function getDefaultKindColor(kind: TaskKind = "task") {
+  if (kind === "event") return "#FF4B12";
+  if (kind === "block") return "#35A8F2";
+  if (kind === "habit") return "#FFB84D";
+  return "#1687E8";
+}
 
 function normalizePriority(priority: unknown): Priority {
   if (priority === "p1" || priority === "p2" || priority === "p3" || priority === "p4") return priority;
@@ -196,7 +234,13 @@ function createNextRecurringTask(task: Task): Task | undefined {
 
   if (task.recurrence === "daily") nextDate.setDate(nextDate.getDate() + 1);
   if (task.recurrence === "weekly") nextDate.setDate(nextDate.getDate() + 7);
-  if (task.recurrence === "monthly") nextDate.setMonth(nextDate.getMonth() + 1);
+  if (task.recurrence === "monthly" || task.recurrence === "monthlyOrdinal") nextDate.setMonth(nextDate.getMonth() + 1);
+  if (task.recurrence === "yearly") nextDate.setFullYear(nextDate.getFullYear() + 1);
+  if (task.recurrence === "weekdays") {
+    do {
+      nextDate.setDate(nextDate.getDate() + 1);
+    } while (nextDate.getDay() === 0 || nextDate.getDay() === 6);
+  }
 
   return {
     ...task,
@@ -301,6 +345,9 @@ export const useLumeStore = create<LumeState>()(
             {
               ...task,
               id: createTaskId(),
+              kind: task.kind ?? "task",
+              color: task.color ?? getDefaultKindColor(task.kind ?? "task"),
+              habitDays: task.kind === "habit" ? task.habitDays ?? [1, 2, 3, 4, 5] : task.habitDays,
               section: task.section ?? "To Do",
               recurrence: task.recurrence ?? "none",
               completed: false,
@@ -395,7 +442,7 @@ export const useLumeStore = create<LumeState>()(
     }),
     {
       name: "lume-productivity-store",
-      version: 3,
+      version: 5,
       migrate: (persisted) => {
         const state = persisted as Partial<LumeState> | undefined;
         return {
@@ -403,8 +450,12 @@ export const useLumeStore = create<LumeState>()(
           tasks: (state?.tasks ?? initialTasks).map((task) => ({
             ...task,
             priority: normalizePriority(task.priority),
+            kind: task.kind ?? "task",
+            color: task.color ?? getDefaultKindColor(task.kind ?? "task"),
+            habitDays: task.kind === "habit" ? task.habitDays ?? [1, 2, 3, 4, 5] : task.habitDays,
             section: task.section ?? (task.completed ? "Done" : "To Do"),
             recurrence: task.recurrence ?? "none",
+            endTime: task.endTime,
           })),
           projects: state?.projects ?? initialProjects,
           labels: state?.labels ?? initialLabels,

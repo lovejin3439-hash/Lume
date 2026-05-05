@@ -16,10 +16,12 @@ import { TimeView } from "@/components/TimeView";
 import { ToastStack } from "@/components/ToastStack";
 import { UpcomingView } from "@/components/UpcomingView";
 import { WeekView } from "@/components/WeekView";
-import { useLumeStore } from "@/store/useLumeStore";
+import { useLumeStore, type TaskKind } from "@/store/useLumeStore";
 
 export function AppShell() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [draftKind, setDraftKind] = useState<TaskKind>("task");
+  const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const user = useLumeStore((state) => state.user);
   const activeView = useLumeStore((state) => state.activeView);
@@ -28,15 +30,26 @@ export function AppShell() {
   const selectTask = useLumeStore((state) => state.selectTask);
   const tasks = useLumeStore((state) => state.tasks);
 
+  function openAddTask(kind: TaskKind = "task") {
+    setDraftKind(kind);
+    setEditingTaskId(undefined);
+    setIsModalOpen(true);
+  }
+
+  function openEditTask(taskId: string) {
+    setEditingTaskId(taskId);
+    setIsModalOpen(true);
+  }
+
   const content = useMemo(() => {
     if (pageTitle === "Upcoming" && activeView === "list") {
-      return <UpcomingView onAddTask={() => setIsModalOpen(true)} />;
+      return <UpcomingView onAddTask={() => openAddTask()} />;
     }
     if (pageTitle === "Focus" && activeView === "list") return <FocusView />;
-    if (activeView === "board") return <BoardView onAddTask={() => setIsModalOpen(true)} />;
+    if (activeView === "board") return <BoardView onAddTask={() => openAddTask()} />;
     if (activeView === "time") return <TimeView />;
-    if (activeView === "week") return <WeekView onAddTask={() => setIsModalOpen(true)} />;
-    if (activeView === "calendar") return <CalendarView />;
+    if (activeView === "week") return <WeekView onAddTask={() => openAddTask()} />;
+    if (activeView === "calendar") return <CalendarView onAddTask={openAddTask} onEditTask={openEditTask} />;
     return <TaskList />;
   }, [activeView, pageTitle, tasks]);
 
@@ -61,7 +74,7 @@ export function AppShell() {
 
       if (event.key.toLowerCase() === "n") {
         event.preventDefault();
-        setIsModalOpen(true);
+        openAddTask();
       }
       if (event.key === "1") setActiveView("list");
       if (event.key === "2") setActiveView("time");
@@ -86,7 +99,7 @@ export function AppShell() {
         <Sidebar />
         <main className="relative min-w-0 border-x border-lume-border bg-white">
           <div className="pointer-events-none absolute left-10 top-0 h-48 w-96 rounded-full bg-black/[0.025] blur-3xl" />
-          <Header onAddTask={() => setIsModalOpen(true)} />
+          <Header onAddTask={() => openAddTask()} />
           <section className="relative px-4 pb-5 sm:px-6 lg:px-7">
             <AnimatePresence mode="wait">
               <motion.div
@@ -103,11 +116,19 @@ export function AppShell() {
         </main>
         <TaskDetailPanel />
       </div>
-      <AddTaskModal open={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AddTaskModal
+        open={isModalOpen}
+        initialKind={draftKind}
+        editingTaskId={editingTaskId}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingTaskId(undefined);
+        }}
+      />
       <CommandPalette
         open={isCommandOpen}
         onClose={() => setIsCommandOpen(false)}
-        onAddTask={() => setIsModalOpen(true)}
+        onAddTask={() => openAddTask()}
       />
       <ToastStack />
     </div>

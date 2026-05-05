@@ -23,6 +23,7 @@ export function FocusView() {
   const [isRunning, setIsRunning] = useState(false);
   const tasks = useLumeStore((state) => state.tasks);
   const selectedDate = useLumeStore((state) => state.selectedDate);
+  const selectedTaskId = useLumeStore((state) => state.selectedTaskId);
   const searchQuery = useLumeStore((state) => state.searchQuery);
   const toggleComplete = useLumeStore((state) => state.toggleComplete);
 
@@ -30,8 +31,16 @@ export function FocusView() {
     () => filterTasks(tasks, "Focus", selectedDate, searchQuery),
     [tasks, selectedDate, searchQuery],
   );
-  const currentTask = focusTasks.find((task) => !task.completed) ?? focusTasks[0];
+  const selectedFocusTask = focusTasks.find((task) => task.id === selectedTaskId);
+  const currentTask = selectedFocusTask ?? focusTasks.find((task) => !task.completed) ?? focusTasks[0];
   const progress = Math.round(((focusDuration - secondsLeft) / focusDuration) * 100);
+  const focusLabel = currentTask
+    ? [
+        currentTask.endTime ? `${currentTask.time} - ${currentTask.endTime}` : currentTask.time,
+        currentTask.project,
+        currentTask.labels.slice(0, 2).join(" · "),
+      ].filter(Boolean).join(" · ")
+    : "Pick a task";
 
   useEffect(() => {
     if (!isRunning) return;
@@ -100,13 +109,22 @@ export function FocusView() {
             </div>
 
             <div className="rounded-2xl border border-lume-border bg-[#FAFAFA] p-5 text-center">
+              <div className="mb-4 rounded-2xl border border-lume-border bg-white px-3 py-3 text-left shadow-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-lume-muted">Timer task</p>
+                <p className="mt-1 truncate text-sm font-semibold text-lume-ink">
+                  {currentTask ? currentTask.title : "No task selected"}
+                </p>
+                {currentTask ? <p className="mt-1 truncate text-xs font-medium text-lume-muted">{focusLabel}</p> : null}
+              </div>
               <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-lume-primary text-white shadow-[0_18px_38px_rgba(0,0,0,0.16)]">
                 <TimerReset className="h-7 w-7" />
               </div>
               <div className="text-5xl font-semibold tracking-[-0.06em] text-lume-ink">
                 {formatTime(secondsLeft)}
               </div>
-              <div className="mt-2 text-xs font-semibold text-lume-muted">{focusMinutes} min focus block</div>
+              <div className="mt-2 text-xs font-semibold text-lume-muted">
+                {focusMinutes} min for {currentTask ? currentTask.title : "focus"}
+              </div>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
                 <motion.div
                   className="h-full rounded-full bg-lume-primary"

@@ -15,6 +15,10 @@ const priorityStyle: Record<string, string> = {
   low: "bg-[#FAFAFA] text-lume-muted",
 };
 
+function formatTaskTime(task: Task) {
+  return task.endTime ? `${task.time} - ${task.endTime}` : task.time;
+}
+
 export function TaskItem({ task, density = "default" }: { task: Task; density?: "default" | "compact" }) {
   const toggleComplete = useLumeStore((state) => state.toggleComplete);
   const duplicateTask = useLumeStore((state) => state.duplicateTask);
@@ -62,7 +66,7 @@ export function TaskItem({ task, density = "default" }: { task: Task; density?: 
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-lume-muted">
               <span className="inline-flex items-center gap-1">
                 <Clock3 className="h-3 w-3" />
-                {task.time}
+                {formatTaskTime(task)}
               </span>
               <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 ${projectColor.chip}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${projectColor.dot}`} />
@@ -98,14 +102,14 @@ export function TaskItem({ task, density = "default" }: { task: Task; density?: 
     >
       <CompleteButton task={task} onToggle={toggleComplete} />
 
-      <div className="hidden text-sm font-medium tabular-nums text-lume-muted lg:block">{task.time}</div>
+      <div className="hidden text-sm font-medium tabular-nums text-lume-muted lg:block">{formatTaskTime(task)}</div>
 
       <div className="min-w-0">
         <h3 className={`truncate text-sm font-semibold text-lume-ink ${task.completed ? "text-lume-muted line-through" : ""}`}>
           {task.title}
         </h3>
         <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-lume-muted">
-          <span className="lg:hidden">{task.time}</span>
+          <span className="lg:hidden">{formatTaskTime(task)}</span>
           <span className="lg:hidden">{task.project}</span>
           {overdue ? <span className="text-[#E06153]">Overdue</span> : null}
           {task.deadline ? <span>Deadline {task.deadline.slice(5)}</span> : null}
